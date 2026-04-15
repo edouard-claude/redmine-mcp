@@ -30,7 +30,7 @@ Tools accept human-readable names for statuses, trackers, assignees, and version
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.25+
 - A Redmine instance (tested with Redmine 5.x)
 - A Redmine API key
 
