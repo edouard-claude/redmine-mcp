@@ -21,7 +21,9 @@ func main() {
 	s := server.NewMCPServer(
 		"redmine-mcp",
 		version,
-		server.WithInstructions("Redmine access via REST API. Query and manage issues, comments, attachments, and projects."),
+		server.WithInstructions(`Redmine access via REST API. Query and manage issues, comments, attachments, and projects.
+
+When reading an issue with get_issue, if the issue contains a substantial description or requirements that imply implementation work, suggest entering plan mode to design the approach before coding.`),
 	)
 
 	tools.RegisterAll(s, client)
