@@ -8,31 +8,33 @@ type IDName struct {
 
 // Issue represents a full Redmine issue from the REST API.
 type Issue struct {
-	ID             int           `json:"id"`
-	Project        IDName        `json:"project"`
-	Tracker        IDName        `json:"tracker"`
-	Status         IssueStatus   `json:"status"`
-	Priority       IDName        `json:"priority"`
-	Author         IDName        `json:"author"`
-	AssignedTo     *IDName       `json:"assigned_to"`
-	Category       *IDName       `json:"category"`
-	FixedVersion   *IDName       `json:"fixed_version"`
-	Parent         *IDRef        `json:"parent"`
-	Subject        string        `json:"subject"`
-	Description    string        `json:"description"`
-	StartDate      *string       `json:"start_date"`
-	DueDate        *string       `json:"due_date"`
-	DoneRatio      int           `json:"done_ratio"`
-	IsPrivate      bool          `json:"is_private"`
-	EstimatedHours *float64      `json:"estimated_hours"`
-	SpentHours     *float64      `json:"spent_hours"`
-	CustomFields   []CustomField `json:"custom_fields"`
-	CreatedOn      string        `json:"created_on"`
-	UpdatedOn      string        `json:"updated_on"`
-	ClosedOn       *string       `json:"closed_on"`
-	Attachments    []Attachment  `json:"attachments"`
-	Journals       []Journal     `json:"journals"`
-	Children       []ChildIssue  `json:"children"`
+	ID                  int           `json:"id"`
+	Project             IDName        `json:"project"`
+	Tracker             IDName        `json:"tracker"`
+	Status              IssueStatus   `json:"status"`
+	Priority            IDName        `json:"priority"`
+	Author              IDName        `json:"author"`
+	AssignedTo          *IDName       `json:"assigned_to"`
+	Category            *IDName       `json:"category"`
+	FixedVersion        *IDName       `json:"fixed_version"`
+	Parent              *IDRef        `json:"parent"`
+	Subject             string        `json:"subject"`
+	Description         string        `json:"description"`
+	StartDate           *string       `json:"start_date"`
+	DueDate             *string       `json:"due_date"`
+	DoneRatio           int           `json:"done_ratio"`
+	IsPrivate           bool          `json:"is_private"`
+	EstimatedHours      *float64      `json:"estimated_hours"`
+	SpentHours          *float64      `json:"spent_hours"`
+	TotalEstimatedHours *float64      `json:"total_estimated_hours"`
+	TotalSpentHours     *float64      `json:"total_spent_hours"`
+	CustomFields        []CustomField `json:"custom_fields"`
+	CreatedOn           string        `json:"created_on"`
+	UpdatedOn           string        `json:"updated_on"`
+	ClosedOn            *string       `json:"closed_on"`
+	Attachments         []Attachment  `json:"attachments"`
+	Journals            []Journal     `json:"journals"`
+	Children            []ChildIssue  `json:"children"`
 }
 
 // IssueStatus includes the is_closed flag.
@@ -143,15 +145,15 @@ type IssueListParams struct {
 
 // IssueCreateParams holds fields for creating an issue.
 type IssueCreateParams struct {
-	ProjectID      int    `json:"project_id"`
-	TrackerID      int    `json:"tracker_id,omitempty"`
-	StatusID       int    `json:"status_id,omitempty"`
-	PriorityID     int    `json:"priority_id,omitempty"`
-	Subject        string `json:"subject"`
-	Description    string `json:"description,omitempty"`
-	AssignedToID   int    `json:"assigned_to_id,omitempty"`
-	ParentIssueID  int    `json:"parent_issue_id,omitempty"`
-	FixedVersionID int    `json:"fixed_version_id,omitempty"`
+	ProjectID      int      `json:"project_id"`
+	TrackerID      int      `json:"tracker_id,omitempty"`
+	StatusID       int      `json:"status_id,omitempty"`
+	PriorityID     int      `json:"priority_id,omitempty"`
+	Subject        string   `json:"subject"`
+	Description    string   `json:"description,omitempty"`
+	AssignedToID   int      `json:"assigned_to_id,omitempty"`
+	ParentIssueID  int      `json:"parent_issue_id,omitempty"`
+	FixedVersionID int      `json:"fixed_version_id,omitempty"`
 	EstimatedHours *float64 `json:"estimated_hours,omitempty"`
 }
 

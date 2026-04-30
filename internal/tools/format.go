@@ -48,6 +48,11 @@ func formatIssue(issue *redmine.Issue, maxDesc int) string {
 		fmt.Fprintf(&b, "Parent: #%d\n", issue.Parent.ID)
 	}
 
+	if hours := formatHours(issue); hours != "" {
+		b.WriteString(hours)
+		b.WriteString("\n")
+	}
+
 	if issue.Description != "" {
 		desc := issue.Description
 		if maxDesc > 0 && len(desc) > maxDesc {
@@ -73,7 +78,17 @@ func formatIssueSummaries(issues []redmine.Issue, offset int) string {
 		if issue.AssignedTo != nil {
 			fmt.Fprintf(&b, " | Assignee: %s", issue.AssignedTo.Name)
 		}
-		fmt.Fprintf(&b, " | %d%% | Updated: %s\n\n", issue.DoneRatio, formatDateTime(issue.UpdatedOn))
+		fmt.Fprintf(&b, " | %d%% | Updated: %s", issue.DoneRatio, formatDateTime(issue.UpdatedOn))
+		if issue.SpentHours != nil || issue.EstimatedHours != nil {
+			b.WriteString(" |")
+			if issue.EstimatedHours != nil {
+				fmt.Fprintf(&b, " est %sh", trimFloat(*issue.EstimatedHours))
+			}
+			if issue.SpentHours != nil {
+				fmt.Fprintf(&b, " spent %sh", trimFloat(*issue.SpentHours))
+			}
+		}
+		b.WriteString("\n\n")
 	}
 
 	return b.String()
@@ -161,6 +176,38 @@ func formatChildren(issueID int, children []redmine.ChildIssue) string {
 	}
 
 	return b.String()
+}
+
+// formatHours renders estimated/spent hours, including totals across subtasks
+// when they differ from the issue's own values.
+func formatHours(issue *redmine.Issue) string {
+	parts := []string{}
+	if issue.EstimatedHours != nil {
+		parts = append(parts, fmt.Sprintf("Estimated: %sh", trimFloat(*issue.EstimatedHours)))
+	}
+	if issue.SpentHours != nil {
+		parts = append(parts, fmt.Sprintf("Spent: %sh", trimFloat(*issue.SpentHours)))
+	}
+	if issue.TotalEstimatedHours != nil && (issue.EstimatedHours == nil || *issue.TotalEstimatedHours != *issue.EstimatedHours) {
+		parts = append(parts, fmt.Sprintf("Total estimated (incl. subtasks): %sh", trimFloat(*issue.TotalEstimatedHours)))
+	}
+	if issue.TotalSpentHours != nil && (issue.SpentHours == nil || *issue.TotalSpentHours != *issue.SpentHours) {
+		parts = append(parts, fmt.Sprintf("Total spent (incl. subtasks): %sh", trimFloat(*issue.TotalSpentHours)))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Hours — " + strings.Join(parts, " | ")
+}
+
+func trimFloat(v float64) string {
+	s := fmt.Sprintf("%.2f", v)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	if s == "" || s == "-" {
+		return "0"
+	}
+	return s
 }
 
 // formatDateTime trims the Redmine ISO timestamp to a readable format.

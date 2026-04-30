@@ -32,7 +32,7 @@ func registerGetIssue(s *server.MCPServer, client *redmine.Client) {
 		}
 		maxDesc := req.GetInt("max_description_chars", 10000)
 
-		issue, err := client.GetIssue(issueID, "attachments", "journals", "children")
+		issue, err := client.GetIssue(issueID, "attachments", "journals", "children", "total_spent_time")
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %v", err)), nil
 		}
