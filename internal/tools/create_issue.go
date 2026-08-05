@@ -42,7 +42,7 @@ func registerCreateIssue(s *server.MCPServer, client *redmine.Client) {
 			mcp.Description("Parent issue ID for subtasks"),
 		),
 		mcp.WithReadOnlyHintAnnotation(false),
-		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
 		mcp.WithOpenWorldHintAnnotation(true),
 	)

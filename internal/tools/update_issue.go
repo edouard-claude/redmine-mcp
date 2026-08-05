@@ -41,7 +41,7 @@ func registerUpdateIssue(s *server.MCPServer, client *redmine.Client) {
 			mcp.Description("New priority numeric ID"),
 		),
 		mcp.WithReadOnlyHintAnnotation(false),
-		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
 		mcp.WithOpenWorldHintAnnotation(true),
 	)

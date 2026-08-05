@@ -21,7 +21,7 @@ func registerUpdateComment(s *server.MCPServer, client *redmine.Client) {
 			mcp.Required(),
 		),
 		mcp.WithReadOnlyHintAnnotation(false),
-		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithOpenWorldHintAnnotation(true),
 	)
