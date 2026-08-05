@@ -18,7 +18,7 @@ Read and write issues, comments, attachments, and projects — pick whichever in
 | `get_comments` | Journal notes for an issue |
 | `get_subtasks` | Child issues of a parent |
 | `get_attachments` | File attachments with download URLs |
-| `download_attachment` | Download attachment content (images as base64, text inline) |
+| `download_attachment` | Download attachment content by `attachment_id` (images inline, text inline, binaries saved to disk) |
 | `list_projects` | All accessible projects |
 
 ### Write
@@ -54,7 +54,7 @@ redmine-mcp search --query "login crash" --project apnl
 redmine-mcp get-comments 7415
 redmine-mcp get-subtasks 7415
 redmine-mcp get-attachments 7415
-redmine-mcp download-attachment --id 4321 --filename screenshot.png -o /tmp/screen.png
+redmine-mcp download-attachment 4321 -o /tmp/screen.png
 redmine-mcp list-projects
 redmine-mcp create-issue --project apnl --subject "Bug login" --tracker Anomalie
 redmine-mcp update-issue 7415 --status "Résolu" --notes "Fixed in v7.6.2"
@@ -66,7 +66,7 @@ Conventions:
 - Flags must precede positional arguments (stdlib `flag` limitation).
 - Errors go to stderr; results go to stdout.
 - Exit codes: `0` success, `1` operation error, `2` usage error.
-- `download-attachment -o <path>` writes binary content to disk; without `-o`, text is printed inline and images are base64-encoded on stdout.
+- `download-attachment <id>` needs only the attachment ID — never the filename. Without `-o` it prints text to stdout and writes binaries under `$TMPDIR/redmine-attachments` (override with `REDMINE_DOWNLOAD_DIR`), printing the path. Use `-o -` for raw bytes on stdout, `-base64` for base64.
 
 ## Prerequisites
 

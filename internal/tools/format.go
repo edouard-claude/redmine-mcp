@@ -61,6 +61,14 @@ func FormatIssue(issue *redmine.Issue, maxDesc int) string {
 		fmt.Fprintf(&b, "\n## Description\n%s\n", desc)
 	}
 
+	if len(issue.Attachments) > 0 {
+		fmt.Fprintf(&b, "\n## Attachments (%d)\n", len(issue.Attachments))
+		for _, a := range issue.Attachments {
+			fmt.Fprintf(&b, "- %s (%s, %s) — attachment_id: %d\n", a.Filename, formatSize(a.Filesize), a.ContentType, a.ID)
+		}
+		b.WriteString("Use download_attachment with the attachment_id to fetch one.\n")
+	}
+
 	return b.String()
 }
 
@@ -150,6 +158,7 @@ func FormatAttachments(issueID int, attachments []redmine.Attachment) string {
 
 	for i, a := range attachments {
 		fmt.Fprintf(&b, "%d. **%s** (%s, %s)\n", i+1, a.Filename, formatSize(a.Filesize), a.ContentType)
+		fmt.Fprintf(&b, "   attachment_id: %d — download it with download_attachment\n", a.ID)
 		fmt.Fprintf(&b, "   By %s — %s\n", a.Author.Name, formatDateTime(a.CreatedOn))
 		if a.Description != "" {
 			fmt.Fprintf(&b, "   Description: %s\n", a.Description)

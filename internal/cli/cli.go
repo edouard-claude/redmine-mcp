@@ -64,7 +64,7 @@ Reads:
   get-comments <id>         Journal notes for an issue
   get-subtasks <id>         Child issues
   get-attachments <id>      File attachments (metadata + URLs)
-  download-attachment       Fetch attachment content (-o writes to file)
+  download-attachment <id>  Fetch attachment content (-o writes to a file)
   list-projects             All accessible projects
 
 Writes:
@@ -277,44 +277,61 @@ func cmdGetAttachments(client *redmine.Client, args []string) int {
 
 func cmdDownloadAttachment(client *redmine.Client, args []string) int {
 	fs := flag.NewFlagSet("download-attachment", flag.ContinueOnError)
-	id := fs.Int("id", 0, "Attachment ID (required)")
-	filename := fs.String("filename", "", "Original filename (required)")
-	out := fs.String("o", "", "Write content to this path (default: write text to stdout, base64 image to stdout)")
-	if code, ok := parseFlagsOnly(fs, args); !ok {
-		return code
+	id := fs.Int("id", 0, "Attachment ID (also accepted as a positional arg)")
+	out := fs.String("o", "", "Write to this path ('-' for stdout, empty for a temp dir)")
+	base64Out := fs.Bool("base64", false, "Print base64 to stdout instead of writing a file")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
 	}
-	if *id == 0 || *filename == "" {
-		return failf("download-attachment: --id and --filename are required")
+	rest := fs.Args()
+	if *id == 0 && len(rest) > 0 {
+		v, err := strconv.Atoi(rest[0])
+		if err != nil {
+			return failf("download-attachment: %q is not an attachment ID", rest[0])
+		}
+		*id, rest = v, rest[1:]
+	}
+	if !checkNoExtraArgs("download-attachment", rest) {
+		return 2
+	}
+	if *id == 0 {
+		return failf("download-attachment: an attachment ID is required (try 'redmine-mcp download-attachment --help')")
 	}
 
-	body, contentType, err := client.DownloadAttachment(*id, *filename)
+	att, err := client.DownloadAttachment(*id)
 	if err != nil {
 		return failf("download failed: %v", err)
 	}
 
-	if *out != "" {
-		if err := os.WriteFile(*out, body, 0o644); err != nil {
-			return failf("write %s: %v", *out, err)
-		}
-		fmt.Fprintf(os.Stderr, "Wrote %d bytes to %s (%s)\n", len(body), *out, contentType)
+	if *base64Out {
+		fmt.Println(base64.StdEncoding.EncodeToString(att.Data))
+		return 0
+	}
+	if *out == "-" {
+		os.Stdout.Write(att.Data)
+		return 0
+	}
+	// Text goes to stdout so it stays pipeable; binaries need a file.
+	if *out == "" && (strings.HasPrefix(att.ContentType, "text/") || isTextExt(att.Filename)) {
+		os.Stdout.Write(att.Data)
 		return 0
 	}
 
-	if strings.HasPrefix(contentType, "image/") {
-		fmt.Println(base64.StdEncoding.EncodeToString(body))
-		return 0
+	path, err := tools.SaveAttachment(att, *out)
+	if err != nil {
+		return failf("%v", err)
 	}
-	if strings.HasPrefix(contentType, "text/") || isTextExt(*filename) {
-		os.Stdout.Write(body)
-		return 0
-	}
-	fmt.Fprintf(os.Stderr, "Binary %s (%s, %d bytes) — use -o to write to disk\n", *filename, contentType, len(body))
-	return 1
+	fmt.Println(path)
+	fmt.Fprintf(os.Stderr, "Wrote %d bytes (%s)\n", len(att.Data), att.ContentType)
+	return 0
 }
 
 func isTextExt(filename string) bool {
 	lower := strings.ToLower(filename)
-	for _, ext := range []string{".md", ".txt", ".json", ".csv", ".xml", ".yaml", ".yml", ".html"} {
+	for _, ext := range []string{".md", ".txt", ".json", ".csv", ".xml", ".yaml", ".yml", ".html", ".log", ".sql"} {
 		if strings.HasSuffix(lower, ext) {
 			return true
 		}

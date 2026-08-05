@@ -60,7 +60,7 @@ Flags must precede positional args (stdlib `flag` limitation).
 | `get_comments` | Journal notes for an issue |
 | `get_subtasks` | Child issues of a parent |
 | `get_attachments` | File attachments with download URLs |
-| `download_attachment` | Download and return attachment content (images as base64, text inline) |
+| `download_attachment` | Download attachment content by `attachment_id` alone (images inline, text inline, binaries saved to disk) |
 | `list_projects` | All accessible projects |
 
 ### Write
@@ -82,3 +82,5 @@ Flags must precede positional args (stdlib `flag` limitation).
 - **macOS `cp` binaire** : ne pas `cp` un binaire Go vers `/usr/local/bin/` — builder directement vers la destination avec `go build -o /usr/local/bin/`
 - **Test MCP stdio** : `(printf '{"jsonrpc":"2.0","id":1,"method":"initialize",...}\n'; sleep 1) | /usr/local/bin/redmine-mcp` pour vérifier que le serveur répond
 - **Claude Code MCP config** : géré via `claude mcp add/remove -s user`, stocké dans `~/.claude.json`
+- **Téléchargement de pièces jointes** : ne jamais mettre le nom de fichier dans l'URL. `/attachments/download/:id/:filename` exige une correspondance octet pour octet, or Redmine stocke les noms accentués en Unicode NFD (`e` + U+0301) alors que les clients renvoient du NFC → 404 systématique. Utiliser `/attachments/download/:id` (sans nom) et `/attachments/:id.json` pour les métadonnées.
+- **Login HTML en HTTP 200** : sur les routes non-`.json`, un Redmine qui refuse la clé API sert la page de login avec un code 200. Comparer la taille reçue au `filesize` des métadonnées pour détecter le cas.

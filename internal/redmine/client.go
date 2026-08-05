@@ -18,6 +18,8 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+	// dlClient has a longer timeout: attachments can be tens of megabytes.
+	dlClient *http.Client
 
 	// cached reference data
 	statuses []IssueStatus
@@ -39,6 +41,9 @@ func NewClient() (*Client, error) {
 		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+		},
+		dlClient: &http.Client{
+			Timeout: 5 * time.Minute,
 		},
 	}, nil
 }
@@ -256,25 +261,80 @@ func (c *Client) ListProjects(limit, offset int) ([]Project, int, error) {
 
 // --- Attachments ---
 
-// DownloadAttachment fetches an attachment by its ID and filename.
-// Returns the body bytes and content type.
-func (c *Client) DownloadAttachment(id int, filename string) ([]byte, string, error) {
-	u := fmt.Sprintf("%s/attachments/download/%d/%s", c.baseURL, id, filename)
+// AttachmentContent is a downloaded attachment: its metadata plus the bytes.
+type AttachmentContent struct {
+	Attachment
+	Data []byte
+}
 
+// GetAttachment fetches attachment metadata by ID (filename, content type, size,
+// content_url). This is the authoritative source for the filename — the one
+// echoed back by a caller is often Unicode-normalized differently and would 404.
+func (c *Client) GetAttachment(id int) (*Attachment, error) {
+	var resp attachmentResponse
+	if err := c.get(fmt.Sprintf("/attachments/%d.json", id), nil, &resp); err != nil {
+		return nil, fmt.Errorf("get attachment #%d: %w", id, err)
+	}
+	return &resp.Attachment, nil
+}
+
+// DownloadAttachment fetches an attachment's content by ID alone.
+//
+// Redmine's download route is /attachments/download/:id[/:filename]; the
+// filename segment is cosmetic but must match the stored name byte-for-byte
+// when present. Filenames with accents are stored NFD-decomposed while clients
+// typically send NFC, so any caller-supplied name is a 404 waiting to happen —
+// we omit the segment entirely and fall back to the server's own content_url.
+func (c *Client) DownloadAttachment(id int) (*AttachmentContent, error) {
+	meta, err := c.GetAttachment(id)
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := []string{fmt.Sprintf("%s/attachments/download/%d", c.baseURL, id)}
+	if meta.ContentURL != "" {
+		candidates = append(candidates, meta.ContentURL)
+	}
+
+	var lastErr error
+	for _, u := range candidates {
+		body, ctype, err := c.fetchRaw(u)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		// A Redmine that refuses the key on non-.json routes serves the login
+		// page with HTTP 200; the declared filesize is the reliable tell.
+		if meta.Filesize > 0 && int64(len(body)) != meta.Filesize {
+			lastErr = fmt.Errorf("got %d bytes for a %d-byte attachment (content-type %s) — check API key permissions", len(body), meta.Filesize, ctype)
+			continue
+		}
+		if ctype == "" {
+			ctype = meta.ContentType
+		}
+		out := &AttachmentContent{Attachment: *meta, Data: body}
+		out.ContentType = ctype
+		return out, nil
+	}
+	return nil, fmt.Errorf("download attachment #%d: %w", id, lastErr)
+}
+
+// fetchRaw performs an authenticated GET and returns the raw body.
+func (c *Client) fetchRaw(u string) ([]byte, string, error) {
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("X-Redmine-API-Key", c.apiKey)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.dlClient.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("download attachment: %w", err)
+		return nil, "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("download attachment: HTTP %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("HTTP %d on %s", resp.StatusCode, u)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -282,7 +342,11 @@ func (c *Client) DownloadAttachment(id int, filename string) ([]byte, string, er
 		return nil, "", fmt.Errorf("read body: %w", err)
 	}
 
-	return body, resp.Header.Get("Content-Type"), nil
+	ctype := resp.Header.Get("Content-Type")
+	if i := strings.Index(ctype, ";"); i != -1 {
+		ctype = strings.TrimSpace(ctype[:i])
+	}
+	return body, ctype, nil
 }
 
 // --- Reference data (cached) ---

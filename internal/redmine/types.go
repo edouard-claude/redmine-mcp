@@ -191,6 +191,10 @@ type projectsResponse struct {
 	TotalCount int       `json:"total_count"`
 }
 
+type attachmentResponse struct {
+	Attachment Attachment `json:"attachment"`
+}
+
 type statusesResponse struct {
 	IssueStatuses []IssueStatus `json:"issue_statuses"`
 }
