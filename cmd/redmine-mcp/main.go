@@ -35,9 +35,12 @@ func runMCP(client *redmine.Client) int {
 	s := server.NewMCPServer(
 		"redmine-mcp",
 		version,
+		server.WithElicitation(),
 		server.WithInstructions(`Redmine access via REST API. Query and manage issues, comments, attachments, and projects.
 
-When reading an issue with get_issue, if the issue contains a substantial description or requirements that imply implementation work, suggest entering plan mode to design the approach before coding.`),
+When reading an issue with get_issue, if the issue contains a substantial description or requirements that imply implementation work, suggest entering plan mode to design the approach before coding.
+
+Write tools (create_issue, update_issue, update_comment) ask the user to confirm through an elicitation prompt before anything reaches Redmine. An aborted write means the user said no: report it and do not retry without new instructions.`),
 	)
 
 	tools.RegisterAll(s, client)

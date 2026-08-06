@@ -119,6 +119,20 @@ func registerCreateIssue(s *server.MCPServer, client *redmine.Client) {
 			params.ParentIssueID = parentID
 		}
 
+		if abort := confirmWrite(ctx, s,
+			fmt.Sprintf("Create a new issue in project %q on %s", project, client.BaseURL()),
+			[]string{
+				summarize("Subject", subject),
+				summarize("Tracker", req.GetString("tracker", "")),
+				summarize("Status", req.GetString("status", "")),
+				summarize("Assignee", req.GetString("assignee", "")),
+				summarize("Version", req.GetString("version", "")),
+				parentSummary(params.ParentIssueID),
+				summarize("Description", params.Description),
+			}); abort != nil {
+			return abort, nil
+		}
+
 		issue, err := client.CreateIssue(params)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("create failed: %v", err)), nil

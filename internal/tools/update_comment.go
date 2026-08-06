@@ -36,6 +36,12 @@ func registerUpdateComment(s *server.MCPServer, client *redmine.Client) {
 			return mcp.NewToolResultError("notes is required"), nil
 		}
 
+		if abort := confirmWrite(ctx, s,
+			fmt.Sprintf("Replace the content of comment #%d on %s", journalID, client.BaseURL()),
+			[]string{summarize("New content", notes)}); abort != nil {
+			return abort, nil
+		}
+
 		if err := client.UpdateJournal(journalID, notes); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("update failed: %v", err)), nil
 		}

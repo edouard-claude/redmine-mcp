@@ -118,6 +118,24 @@ func registerUpdateIssue(s *server.MCPServer, client *redmine.Client) {
 			params.PriorityID = &priorityID
 		}
 
+		title := fmt.Sprintf("Update issue #%d on %s", issueID, client.BaseURL())
+		if issue, err := client.GetIssue(issueID); err == nil {
+			title = fmt.Sprintf("Update issue #%d %q on %s", issueID, issue.Subject, client.BaseURL())
+		}
+		fields := []string{
+			summarize("New subject", req.GetString("subject", "")),
+			summarize("New status", req.GetString("status", "")),
+			summarize("New assignee", req.GetString("assignee", "")),
+			summarize("New tracker", req.GetString("tracker", "")),
+			intSummary("Done ratio", params.DoneRatio, "%d%%"),
+			intSummary("Priority ID", params.PriorityID, "%d"),
+			summarize("New description", req.GetString("description", "")),
+			summarize("Comment posted on the issue", req.GetString("notes", "")),
+		}
+		if abort := confirmWrite(ctx, s, title, fields); abort != nil {
+			return abort, nil
+		}
+
 		if err := client.UpdateIssue(issueID, params); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("update failed: %v", err)), nil
 		}

@@ -17,6 +17,7 @@ make install   # builds directly to /usr/local/bin/redmine-mcp
 
 - `REDMINE_URL` — Redmine web base URL (required, e.g. `https://projets.example.com`)
 - `REDMINE_API_KEY` — Redmine API key for authentication (required, from My Account > API access key)
+- `REDMINE_AUTO_WRITE` — set to `1` to bypass the human confirmation on write tools (see below)
 
 ## Architecture
 
@@ -69,6 +70,24 @@ Flags must precede positional args (stdlib `flag` limitation).
 |------|-------------|
 | `create_issue` | Create a new issue (project + subject required) |
 | `update_issue` | Update issue fields and/or add a comment |
+| `update_comment` | Edit an existing journal note |
+
+## Human-in-the-loop (write tools)
+
+`internal/tools/confirm.go` gates the three write tools: before anything reaches
+Redmine, `confirmWrite` sends an `elicitation/create` request showing exactly
+what will be written (subject, changed fields, full note/description text) and
+waits for an explicit `confirm: true`.
+
+- **Fail-closed** — decline, cancel, a missing `confirm` field, a client that
+  never advertised the `elicitation` capability, or no answer within 10 minutes
+  all abort the write.
+- The client capability is checked *before* sending: mcp-go does not check it
+  and would block the tool call until the context expires.
+- `REDMINE_AUTO_WRITE=1` skips the whole flow — for clients that already prompt
+  before every tool call.
+- The CLI path (`internal/cli`) is deliberately not gated: the human is the one
+  typing the command.
 
 ## Conventions
 
