@@ -24,6 +24,7 @@ type Client struct {
 	// cached reference data
 	statuses []IssueStatus
 	trackers []Tracker
+	roles    []IDName
 }
 
 // NewClient creates a Redmine client from REDMINE_URL and REDMINE_API_KEY.
@@ -257,6 +258,188 @@ func (c *Client) ListProjects(limit, offset int) ([]Project, int, error) {
 		return nil, 0, fmt.Errorf("list projects: %w", err)
 	}
 	return resp.Projects, resp.TotalCount, nil
+}
+
+// --- Users & memberships ---
+
+// ListUsers fetches user accounts, optionally filtered by name (matches login,
+// firstname, lastname, mail). Requires an admin API key.
+func (c *Client) ListUsers(name string, limit, offset int) ([]User, int, error) {
+	params := url.Values{}
+	if name != "" {
+		params.Set("name", name)
+	}
+	if limit > 0 {
+		params.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		params.Set("offset", strconv.Itoa(offset))
+	}
+	var resp usersResponse
+	if err := c.get("/users.json", params, &resp); err != nil {
+		return nil, 0, fmt.Errorf("list users (admin API key required): %w", err)
+	}
+	return resp.Users, resp.TotalCount, nil
+}
+
+// CreateUser creates a user account. Requires an admin API key. sendInfo asks
+// Redmine to email the credentials to the new user; in the API payload it is a
+// sibling of the user hash, not part of it.
+func (c *Client) CreateUser(p UserCreateParams, sendInfo bool) (*User, error) {
+	payload := map[string]interface{}{"user": p}
+	if sendInfo {
+		payload["send_information"] = true
+	}
+	resp, err := c.sendJSON("POST", "/users.json", payload)
+	if err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("create user: HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode created user: %w", err)
+	}
+	return &result.User, nil
+}
+
+// ListMemberships fetches the members (users and groups) of a project.
+func (c *Client) ListMemberships(projectID string, limit, offset int) ([]Membership, int, error) {
+	params := url.Values{}
+	if limit > 0 {
+		params.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		params.Set("offset", strconv.Itoa(offset))
+	}
+	var resp membershipsResponse
+	if err := c.get(fmt.Sprintf("/projects/%s/memberships.json", projectID), params, &resp); err != nil {
+		return nil, 0, fmt.Errorf("list memberships for %s: %w", projectID, err)
+	}
+	return resp.Memberships, resp.TotalCount, nil
+}
+
+// AddMembership adds a user to a project with the given roles. Requires the
+// "manage members" permission on the project (or an admin API key).
+func (c *Client) AddMembership(projectID string, userID int, roleIDs []int) (*Membership, error) {
+	payload := map[string]interface{}{
+		"membership": map[string]interface{}{
+			"user_id":  userID,
+			"role_ids": roleIDs,
+		},
+	}
+	resp, err := c.sendJSON("POST", fmt.Sprintf("/projects/%s/memberships.json", projectID), payload)
+	if err != nil {
+		return nil, fmt.Errorf("add member to %s: %w", projectID, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("add member to %s: HTTP %d: %s", projectID, resp.StatusCode, string(body))
+	}
+
+	var result membershipResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode created membership: %w", err)
+	}
+	return &result.Membership, nil
+}
+
+// GetGroups fetches all user groups. Requires an admin API key.
+func (c *Client) GetGroups() ([]IDName, error) {
+	var resp groupsResponse
+	if err := c.get("/groups.json", nil, &resp); err != nil {
+		return nil, fmt.Errorf("get groups (admin API key required): %w", err)
+	}
+	return resp.Groups, nil
+}
+
+// ResolveGroupID resolves a group name or numeric ID.
+func (c *Client) ResolveGroupID(name string) (int, error) {
+	if id, err := strconv.Atoi(name); err == nil {
+		return id, nil
+	}
+	groups, err := c.GetGroups()
+	if err != nil {
+		return 0, err
+	}
+	for _, g := range groups {
+		if strings.EqualFold(g.Name, name) {
+			return g.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("unknown group: %q (list_groups shows the valid names)", name)
+}
+
+// AddGroupUser adds a user to a group; the user inherits every project
+// membership the group has. Requires an admin API key.
+func (c *Client) AddGroupUser(groupID, userID int) error {
+	payload := map[string]interface{}{"user_id": userID}
+	resp, err := c.sendJSON("POST", fmt.Sprintf("/groups/%d/users.json", groupID), payload)
+	if err != nil {
+		return fmt.Errorf("add user to group #%d: %w", groupID, err)
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated, http.StatusNoContent:
+		return nil
+	}
+	body, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("add user to group #%d: HTTP %d: %s", groupID, resp.StatusCode, string(body))
+}
+
+// GetRoles fetches and caches all roles assignable to project members.
+func (c *Client) GetRoles() ([]IDName, error) {
+	if c.roles != nil {
+		return c.roles, nil
+	}
+	var resp rolesResponse
+	if err := c.get("/roles.json", nil, &resp); err != nil {
+		return nil, fmt.Errorf("get roles: %w", err)
+	}
+	c.roles = resp.Roles
+	return c.roles, nil
+}
+
+// ResolveRoleIDs resolves a comma-separated list of role names or numeric IDs.
+func (c *Client) ResolveRoleIDs(names string) ([]int, error) {
+	var ids []int
+	for _, part := range strings.Split(names, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if id, err := strconv.Atoi(part); err == nil {
+			ids = append(ids, id)
+			continue
+		}
+		roles, err := c.GetRoles()
+		if err != nil {
+			return nil, err
+		}
+		found := 0
+		for _, r := range roles {
+			if strings.EqualFold(r.Name, part) {
+				found = r.ID
+				break
+			}
+		}
+		if found == 0 {
+			return nil, fmt.Errorf("unknown role: %q (list_roles shows the valid names)", part)
+		}
+		ids = append(ids, found)
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("at least one role is required")
+	}
+	return ids, nil
 }
 
 // --- Attachments ---

@@ -129,6 +129,48 @@ type Version struct {
 	Status  string `json:"status"`
 }
 
+// User represents a Redmine user account (full form, /users.json — admin only).
+type User struct {
+	ID          int    `json:"id"`
+	Login       string `json:"login"`
+	Firstname   string `json:"firstname"`
+	Lastname    string `json:"lastname"`
+	Mail        string `json:"mail"`
+	Admin       bool   `json:"admin"`
+	CreatedOn   string `json:"created_on"`
+	LastLoginOn string `json:"last_login_on"`
+}
+
+// Membership represents a project membership. Either User or Group is set.
+type Membership struct {
+	ID      int              `json:"id"`
+	Project IDName           `json:"project"`
+	User    *IDName          `json:"user"`
+	Group   *IDName          `json:"group"`
+	Roles   []MembershipRole `json:"roles"`
+}
+
+// MembershipRole is a role within a membership; Inherited marks roles that
+// come from a group membership and cannot be edited directly.
+type MembershipRole struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Inherited bool   `json:"inherited"`
+}
+
+// UserCreateParams holds fields for creating a user account.
+// send_information is a sibling of the user hash in the API payload, so it is
+// passed separately to CreateUser.
+type UserCreateParams struct {
+	Login            string `json:"login"`
+	Firstname        string `json:"firstname"`
+	Lastname         string `json:"lastname"`
+	Mail             string `json:"mail"`
+	Password         string `json:"password,omitempty"`
+	GeneratePassword bool   `json:"generate_password,omitempty"`
+	MustChangePasswd bool   `json:"must_change_passwd,omitempty"`
+}
+
 // IssueListParams holds filters for listing issues.
 type IssueListParams struct {
 	ProjectID    string
@@ -213,5 +255,27 @@ type searchResponse struct {
 }
 
 type usersResponse struct {
-	Users []IDName `json:"users"`
+	Users      []User `json:"users"`
+	TotalCount int    `json:"total_count"`
+}
+
+type userResponse struct {
+	User User `json:"user"`
+}
+
+type rolesResponse struct {
+	Roles []IDName `json:"roles"`
+}
+
+type groupsResponse struct {
+	Groups []IDName `json:"groups"`
+}
+
+type membershipsResponse struct {
+	Memberships []Membership `json:"memberships"`
+	TotalCount  int          `json:"total_count"`
+}
+
+type membershipResponse struct {
+	Membership Membership `json:"membership"`
 }

@@ -187,6 +187,89 @@ func FormatChildren(issueID int, children []redmine.ChildIssue) string {
 	return b.String()
 }
 
+func FormatUsers(users []redmine.User, total int) string {
+	if len(users) == 0 {
+		return "No users found."
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Users (%d of %d)\n\n", len(users), total)
+
+	for _, u := range users {
+		fmt.Fprintf(&b, "- **%s %s** (`%s`, user_id: %d) — %s", u.Firstname, u.Lastname, u.Login, u.ID, u.Mail)
+		if u.Admin {
+			b.WriteString(" [admin]")
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func FormatRoles(roles []redmine.IDName) string {
+	if len(roles) == 0 {
+		return "No roles found."
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Roles (%d)\n\n", len(roles))
+
+	for _, r := range roles {
+		fmt.Fprintf(&b, "- %s (role_id: %d)\n", r.Name, r.ID)
+	}
+
+	return b.String()
+}
+
+func FormatGroups(groups []redmine.IDName) string {
+	if len(groups) == 0 {
+		return "No groups found."
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Groups (%d)\n\n", len(groups))
+
+	for _, g := range groups {
+		fmt.Fprintf(&b, "- %s (group_id: %d)\n", g.Name, g.ID)
+	}
+
+	return b.String()
+}
+
+func FormatMemberships(project string, memberships []redmine.Membership, total int) string {
+	if len(memberships) == 0 {
+		return fmt.Sprintf("No members in project %s.", project)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Members of %s (%d of %d)\n\n", project, len(memberships), total)
+
+	for _, m := range memberships {
+		switch {
+		case m.User != nil:
+			fmt.Fprintf(&b, "- **%s** (user_id: %d)", m.User.Name, m.User.ID)
+		case m.Group != nil:
+			fmt.Fprintf(&b, "- **%s** (group_id: %d) [group]", m.Group.Name, m.Group.ID)
+		default:
+			fmt.Fprintf(&b, "- membership #%d", m.ID)
+		}
+		var roles []string
+		for _, r := range m.Roles {
+			name := r.Name
+			if r.Inherited {
+				name += " (inherited)"
+			}
+			roles = append(roles, name)
+		}
+		if len(roles) > 0 {
+			fmt.Fprintf(&b, " — %s", strings.Join(roles, ", "))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
 // formatHours renders estimated/spent hours, including totals across subtasks
 // when they differ from the issue's own values.
 func formatHours(issue *redmine.Issue) string {

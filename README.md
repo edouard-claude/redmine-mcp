@@ -20,6 +20,10 @@ Read and write issues, comments, attachments, and projects — pick whichever in
 | `get_attachments` | File attachments with download URLs |
 | `download_attachment` | Download attachment content by `attachment_id` (images inline, text inline, binaries saved to disk) |
 | `list_projects` | All accessible projects |
+| `search_users` | Search user accounts by name/login/email (admin API key required) |
+| `list_roles` | Roles assignable to project members |
+| `list_groups` | User groups (admin API key required) |
+| `list_project_members` | Members (users and groups) of a project with their roles |
 
 ### Write
 
@@ -28,6 +32,9 @@ Read and write issues, comments, attachments, and projects — pick whichever in
 | `create_issue` | Create a new issue |
 | `update_issue` | Update issue fields and/or add a comment |
 | `update_comment` | Edit an existing comment |
+| `create_user` | Create a user account (admin API key required) |
+| `add_project_member` | Add a user to a project with one or more roles |
+| `add_group_user` | Add a user to a group (inherits the group's project memberships) |
 
 Tools accept human-readable names for statuses, trackers, assignees, and versions — they are resolved to IDs automatically.
 
@@ -59,6 +66,12 @@ redmine-mcp list-projects
 redmine-mcp create-issue --project apnl --subject "Bug login" --tracker Anomalie
 redmine-mcp update-issue 7415 --status "Résolu" --notes "Fixed in v7.6.2"
 redmine-mcp update-comment 98765 --notes "edited content"
+redmine-mcp search-users --query dupont
+redmine-mcp list-roles
+redmine-mcp list-project-members --project apnl
+redmine-mcp create-user --login jdupont --firstname Jean --lastname Dupont --mail j.dupont@example.com --send-info
+redmine-mcp add-project-member --project apnl --user jdupont --roles "Développeur"
+redmine-mcp add-group-user --group "Client X" --user jdupont
 ```
 
 Conventions:

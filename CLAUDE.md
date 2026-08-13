@@ -63,6 +63,10 @@ Flags must precede positional args (stdlib `flag` limitation).
 | `get_attachments` | File attachments with download URLs |
 | `download_attachment` | Download attachment content by `attachment_id` alone (images inline, text inline, binaries saved to disk) |
 | `list_projects` | All accessible projects |
+| `search_users` | Search user accounts by name/login/email (admin API key required) |
+| `list_roles` | Roles assignable to project members |
+| `list_groups` | User groups (admin API key required) |
+| `list_project_members` | Members (users and groups) of a project with their roles |
 
 ### Write
 
@@ -71,10 +75,13 @@ Flags must precede positional args (stdlib `flag` limitation).
 | `create_issue` | Create a new issue (project + subject required) |
 | `update_issue` | Update issue fields and/or add a comment |
 | `update_comment` | Edit an existing journal note |
+| `create_user` | Create a user account (admin API key required; password generated unless provided) |
+| `add_project_member` | Add a user to a project with roles (`manage members` permission or admin key) |
+| `add_group_user` | Add a user to a group — the user inherits the group's project memberships (admin key) |
 
 ## Human-in-the-loop (write tools)
 
-`internal/tools/confirm.go` gates the three write tools: before anything reaches
+`internal/tools/confirm.go` gates the write tools: before anything reaches
 Redmine, `confirmWrite` sends an `elicitation/create` request showing exactly
 what will be written (subject, changed fields, full note/description text) and
 waits for an explicit `confirm: true`.

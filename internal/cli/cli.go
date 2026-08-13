@@ -42,12 +42,26 @@ func Run(args []string, client *redmine.Client) int {
 		return cmdDownloadAttachment(client, args[1:])
 	case "list-projects":
 		return cmdListProjects(client, args[1:])
+	case "search-users":
+		return cmdSearchUsers(client, args[1:])
+	case "list-roles":
+		return cmdListRoles(client, args[1:])
+	case "list-groups":
+		return cmdListGroups(client, args[1:])
+	case "list-project-members":
+		return cmdListProjectMembers(client, args[1:])
 	case "create-issue":
 		return cmdCreateIssue(client, args[1:])
 	case "update-issue":
 		return cmdUpdateIssue(client, args[1:])
 	case "update-comment":
 		return cmdUpdateComment(client, args[1:])
+	case "create-user":
+		return cmdCreateUser(client, args[1:])
+	case "add-project-member":
+		return cmdAddProjectMember(client, args[1:])
+	case "add-group-user":
+		return cmdAddGroupUser(client, args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %q\n\n", args[0])
 		printUsage(os.Stderr)
@@ -66,11 +80,18 @@ Reads:
   get-attachments <id>      File attachments (metadata + URLs)
   download-attachment <id>  Fetch attachment content (-o writes to a file)
   list-projects             All accessible projects
+  search-users              Search user accounts (--query; admin key required)
+  list-roles                Roles assignable to project members
+  list-groups               User groups (admin key required)
+  list-project-members      Members of a project (--project required)
 
 Writes:
   create-issue              Create issue (--project, --subject required)
   update-issue <id>         Update fields and/or add a comment
   update-comment <jid>      Edit an existing comment
+  create-user               Create a user account (admin key required)
+  add-project-member        Add a user to a project (--project, --user, --roles)
+  add-group-user            Add a user to a group (--group, --user)
 
 Server:
   mcp                       Run as MCP server over stdio (also the default
@@ -352,6 +373,68 @@ func cmdListProjects(client *redmine.Client, args []string) int {
 	return 0
 }
 
+func cmdSearchUsers(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("search-users", flag.ContinueOnError)
+	query := fs.String("query", "", "Filter matching login, name or email (empty = all users)")
+	limit := fs.Int("limit", 25, "Max results (max 100)")
+	offset := fs.Int("offset", 0, "Pagination offset")
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	if *limit > 100 {
+		*limit = 100
+	}
+	users, total, err := client.ListUsers(*query, *limit, *offset)
+	if err != nil {
+		return failf("search users: %v", err)
+	}
+	fmt.Print(tools.FormatUsers(users, total))
+	return 0
+}
+
+func cmdListRoles(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("list-roles", flag.ContinueOnError)
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	roles, err := client.GetRoles()
+	if err != nil {
+		return failf("list roles: %v", err)
+	}
+	fmt.Print(tools.FormatRoles(roles))
+	return 0
+}
+
+func cmdListGroups(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("list-groups", flag.ContinueOnError)
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	groups, err := client.GetGroups()
+	if err != nil {
+		return failf("list groups: %v", err)
+	}
+	fmt.Print(tools.FormatGroups(groups))
+	return 0
+}
+
+func cmdListProjectMembers(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("list-project-members", flag.ContinueOnError)
+	project := fs.String("project", "", "Project identifier or numeric ID (required)")
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	if *project == "" {
+		return failf("list-project-members: --project is required")
+	}
+	members, total, err := client.ListMemberships(*project, 100, 0)
+	if err != nil {
+		return failf("list members: %v", err)
+	}
+	fmt.Print(tools.FormatMemberships(*project, members, total))
+	return 0
+}
+
 // --- writes ---
 
 func cmdCreateIssue(client *redmine.Client, args []string) int {
@@ -519,6 +602,114 @@ func cmdUpdateIssue(client *redmine.Client, args []string) int {
 		return failf("update failed: %v", err)
 	}
 	fmt.Printf("Issue #%d updated.\n", id)
+	return 0
+}
+
+func cmdCreateUser(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("create-user", flag.ContinueOnError)
+	login := fs.String("login", "", "Login/username (required)")
+	firstname := fs.String("firstname", "", "First name (required)")
+	lastname := fs.String("lastname", "", "Last name (required)")
+	mail := fs.String("mail", "", "Email address (required)")
+	password := fs.String("password", "", "Initial password (empty = let Redmine generate one)")
+	sendInfo := fs.Bool("send-info", false, "Email the account information (including the password) to the user")
+	mustChange := fs.Bool("must-change-password", false, "Force a password change at first login")
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	if *login == "" || *firstname == "" || *lastname == "" || *mail == "" {
+		return failf("create-user: --login, --firstname, --lastname and --mail are required")
+	}
+
+	params := redmine.UserCreateParams{
+		Login:            *login,
+		Firstname:        *firstname,
+		Lastname:         *lastname,
+		Mail:             *mail,
+		Password:         *password,
+		MustChangePasswd: *mustChange,
+	}
+	if params.Password == "" {
+		params.GeneratePassword = true
+	}
+
+	user, err := client.CreateUser(params, *sendInfo)
+	if err != nil {
+		return failf("create failed: %v", err)
+	}
+	fmt.Printf("User #%d created: %s %s (%s, %s)\n%s/users/%d\n", user.ID, user.Firstname, user.Lastname, user.Login, user.Mail, client.BaseURL(), user.ID)
+	return 0
+}
+
+func cmdAddProjectMember(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("add-project-member", flag.ContinueOnError)
+	project := fs.String("project", "", "Project identifier or numeric ID (required)")
+	user := fs.String("user", "", "User login, name or numeric ID (required)")
+	roles := fs.String("roles", "", "Comma-separated role names or numeric IDs (required)")
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	if *project == "" || *user == "" || *roles == "" {
+		return failf("add-project-member: --project, --user and --roles are required")
+	}
+
+	resolved, err := client.ResolveUserID(*user)
+	if err != nil {
+		return failf("invalid user: %v", err)
+	}
+	userID, err := strconv.Atoi(resolved)
+	if err != nil {
+		return failf("user %q resolved to %q which is not a numeric ID", *user, resolved)
+	}
+	roleIDs, err := client.ResolveRoleIDs(*roles)
+	if err != nil {
+		return failf("invalid roles: %v", err)
+	}
+
+	m, err := client.AddMembership(*project, userID, roleIDs)
+	if err != nil {
+		return failf("add member failed: %v", err)
+	}
+	names := make([]string, len(m.Roles))
+	for i, r := range m.Roles {
+		names[i] = r.Name
+	}
+	who := *user
+	if m.User != nil && m.User.Name != "" {
+		who = m.User.Name
+	}
+	fmt.Printf("%s added to project %s with role(s): %s\n", who, *project, strings.Join(names, ", "))
+	return 0
+}
+
+func cmdAddGroupUser(client *redmine.Client, args []string) int {
+	fs := flag.NewFlagSet("add-group-user", flag.ContinueOnError)
+	group := fs.String("group", "", "Group name or numeric ID (required)")
+	user := fs.String("user", "", "User login, name or numeric ID (required)")
+	if code, ok := parseFlagsOnly(fs, args); !ok {
+		return code
+	}
+	if *group == "" || *user == "" {
+		return failf("add-group-user: --group and --user are required")
+	}
+
+	groupID, err := client.ResolveGroupID(*group)
+	if err != nil {
+		return failf("invalid group: %v", err)
+	}
+	resolved, err := client.ResolveUserID(*user)
+	if err != nil {
+		return failf("invalid user: %v", err)
+	}
+	userID, err := strconv.Atoi(resolved)
+	if err != nil {
+		return failf("user %q resolved to %q which is not a numeric ID", *user, resolved)
+	}
+
+	if err := client.AddGroupUser(groupID, userID); err != nil {
+		return failf("add to group failed: %v", err)
+	}
+	fmt.Printf("%s added to group %s. They now inherit the group's project memberships.\n", *user, *group)
 	return 0
 }
 
