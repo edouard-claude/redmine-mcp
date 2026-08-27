@@ -20,6 +20,7 @@ func registerUpdateComment(s *server.MCPServer, client *redmine.Client) {
 			mcp.Description("New content for the comment"),
 			mcp.Required(),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(true),
@@ -35,9 +36,14 @@ func registerUpdateComment(s *server.MCPServer, client *redmine.Client) {
 		if notes == "" {
 			return mcp.NewToolResultError("notes is required"), nil
 		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
+		}
 
 		if abort := confirmWrite(ctx, s,
 			fmt.Sprintf("Replace the content of comment #%d on %s", journalID, client.BaseURL()),
+			why,
 			[]string{summarize("New content", notes)}); abort != nil {
 			return abort, nil
 		}

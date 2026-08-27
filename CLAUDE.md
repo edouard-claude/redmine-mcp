@@ -86,6 +86,11 @@ Redmine, `confirmWrite` sends an `elicitation/create` request showing exactly
 what will be written (subject, changed fields, full note/description text) and
 waits for an explicit `confirm: true`.
 
+- Every write tool requires a `change_summary` parameter: the calling model
+  must explain, in the user's language, what it is about to change and why.
+  The text is shown verbatim at the top of the confirmation prompt (and in the
+  client's own permission dialog when `REDMINE_AUTO_WRITE=1`).
+
 - **Fail-closed** — decline, cancel, a missing `confirm` field, a client that
   never advertised the `elicitation` capability, or no answer within 10 minutes
   all abort the write.

@@ -37,6 +37,7 @@ func registerCreateUser(s *server.MCPServer, client *redmine.Client) {
 		mcp.WithBoolean("must_change_password",
 			mcp.Description("Force a password change at first login (default false)"),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -55,6 +56,10 @@ func registerCreateUser(s *server.MCPServer, client *redmine.Client) {
 		if params.Login == "" || params.Firstname == "" || params.Lastname == "" || params.Mail == "" {
 			return mcp.NewToolResultError("login, firstname, lastname and mail are required"), nil
 		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
+		}
 		if params.Password == "" {
 			params.GeneratePassword = true
 		}
@@ -70,6 +75,7 @@ func registerCreateUser(s *server.MCPServer, client *redmine.Client) {
 		}
 		if abort := confirmWrite(ctx, s,
 			fmt.Sprintf("Create user account %q on %s", params.Login, client.BaseURL()),
+			why,
 			[]string{
 				summarize("Name", params.Firstname+" "+params.Lastname),
 				summarize("Email", params.Mail),

@@ -41,6 +41,7 @@ func registerCreateIssue(s *server.MCPServer, client *redmine.Client) {
 		mcp.WithNumber("parent_issue_id",
 			mcp.Description("Parent issue ID for subtasks"),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -55,6 +56,10 @@ func registerCreateIssue(s *server.MCPServer, client *redmine.Client) {
 		subject := req.GetString("subject", "")
 		if subject == "" {
 			return mcp.NewToolResultError("subject is required"), nil
+		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
 		}
 
 		// Resolve project identifier to numeric ID via the projects endpoint
@@ -121,6 +126,7 @@ func registerCreateIssue(s *server.MCPServer, client *redmine.Client) {
 
 		if abort := confirmWrite(ctx, s,
 			fmt.Sprintf("Create a new issue in project %q on %s", project, client.BaseURL()),
+			why,
 			[]string{
 				summarize("Subject", subject),
 				summarize("Tracker", req.GetString("tracker", "")),

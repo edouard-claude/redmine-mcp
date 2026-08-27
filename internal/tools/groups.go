@@ -39,6 +39,7 @@ func registerAddGroupUser(s *server.MCPServer, client *redmine.Client) {
 			mcp.Description("User login, name or numeric ID"),
 			mcp.Required(),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -50,6 +51,10 @@ func registerAddGroupUser(s *server.MCPServer, client *redmine.Client) {
 		user := req.GetString("user", "")
 		if group == "" || user == "" {
 			return mcp.NewToolResultError("group and user are required"), nil
+		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
 		}
 
 		groupID, err := client.ResolveGroupID(group)
@@ -67,6 +72,7 @@ func registerAddGroupUser(s *server.MCPServer, client *redmine.Client) {
 
 		if abort := confirmWrite(ctx, s,
 			fmt.Sprintf("Add a user to group %q on %s", group, client.BaseURL()),
+			why,
 			[]string{
 				summarize("User", fmt.Sprintf("%s (id %d)", user, userID)),
 				summarize("Group", fmt.Sprintf("%s (id %d)", group, groupID)),

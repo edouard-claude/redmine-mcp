@@ -26,6 +26,7 @@ func registerAddProjectMember(s *server.MCPServer, client *redmine.Client) {
 			mcp.Description("Comma-separated role names or numeric IDs (e.g. 'Développeur' or 'Manager,Rapporteur')"),
 			mcp.Required(),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -38,6 +39,10 @@ func registerAddProjectMember(s *server.MCPServer, client *redmine.Client) {
 		roles := req.GetString("roles", "")
 		if project == "" || user == "" || roles == "" {
 			return mcp.NewToolResultError("project, user and roles are required"), nil
+		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
 		}
 
 		resolved, err := client.ResolveUserID(user)
@@ -56,6 +61,7 @@ func registerAddProjectMember(s *server.MCPServer, client *redmine.Client) {
 
 		if abort := confirmWrite(ctx, s,
 			fmt.Sprintf("Add a member to project %q on %s", project, client.BaseURL()),
+			why,
 			[]string{
 				summarize("User", fmt.Sprintf("%s (id %d)", user, userID)),
 				summarize("Roles", roles),

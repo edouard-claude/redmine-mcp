@@ -73,7 +73,7 @@ func TestConfirmWrite(t *testing.T) {
 			session := &elicitSession{result: tt.result}
 			ctx := s.WithContext(context.Background(), session)
 
-			abort := confirmWrite(ctx, s, "Update issue #1", []string{summarize("Comment", "hello")})
+			abort := confirmWrite(ctx, s, "Update issue #1", "Add a comment on the issue", []string{summarize("Comment", "hello")})
 
 			if tt.allowed && abort != nil {
 				t.Fatalf("write should proceed, got abort")
@@ -97,7 +97,7 @@ func TestConfirmWriteWithoutElicitationSupport(t *testing.T) {
 		"session without cap": s.WithContext(context.Background(), plainSession{}),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if abort := confirmWrite(ctx, s, "Update issue #1", nil); abort == nil {
+			if abort := confirmWrite(ctx, s, "Update issue #1", "", nil); abort == nil {
 				t.Fatal("write should be aborted when the user cannot be asked")
 			}
 		})
@@ -111,7 +111,7 @@ func TestConfirmWriteUndeclaredCapability(t *testing.T) {
 	session := &silentSession{elicitSession: elicitSession{result: accepted(map[string]any{"confirm": true})}}
 	ctx := s.WithContext(context.Background(), session)
 
-	if abort := confirmWrite(ctx, s, "Update issue #1", nil); abort == nil {
+	if abort := confirmWrite(ctx, s, "Update issue #1", "", nil); abort == nil {
 		t.Fatal("write should be aborted when the client never advertised elicitation")
 	}
 	if session.calls != 0 {
@@ -134,7 +134,7 @@ func TestConfirmWriteAutoWrite(t *testing.T) {
 	session := &elicitSession{result: accepted(map[string]any{"confirm": false})}
 	ctx := s.WithContext(context.Background(), session)
 
-	if abort := confirmWrite(ctx, s, "Update issue #1", nil); abort != nil {
+	if abort := confirmWrite(ctx, s, "Update issue #1", "", nil); abort != nil {
 		t.Fatal("REDMINE_AUTO_WRITE should bypass confirmation")
 	}
 	if session.calls != 0 {

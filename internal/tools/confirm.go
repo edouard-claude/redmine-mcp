@@ -43,11 +43,32 @@ func autoWriteEnabled() bool {
 	return false
 }
 
+// withChangeSummary declares the change_summary parameter shared by every
+// write tool: the calling model must explain the write in the user's own
+// words before it can be confirmed.
+func withChangeSummary() mcp.ToolOption {
+	return mcp.WithString("change_summary",
+		mcp.Description("One or two sentences, in the user's language, explaining what this call will change and why. Shown verbatim to the human in the confirmation prompt — write it for them, not for the API."),
+		mcp.Required(),
+	)
+}
+
+// requireChangeSummary extracts the model's explanation of the write. An
+// empty value rejects the call before anything is shown to the user.
+func requireChangeSummary(req mcp.CallToolRequest) (string, *mcp.CallToolResult) {
+	why := strings.TrimSpace(req.GetString("change_summary", ""))
+	if why == "" {
+		return "", mcp.NewToolResultError("change_summary is required: explain in one or two sentences, in the user's language, what you are about to change and why, then call the tool again")
+	}
+	return why, nil
+}
+
 // confirmWrite asks the user to approve a write through the MCP elicitation
-// flow before it reaches Redmine. It returns nil when the write may proceed,
-// or the result the tool must return when it has to be aborted. Anything that
-// is not an explicit approval aborts the write.
-func confirmWrite(ctx context.Context, s *server.MCPServer, title string, fields []string) *mcp.CallToolResult {
+// flow before it reaches Redmine. why is the calling model's own explanation
+// of the change and is shown right under the title. It returns nil when the
+// write may proceed, or the result the tool must return when it has to be
+// aborted. Anything that is not an explicit approval aborts the write.
+func confirmWrite(ctx context.Context, s *server.MCPServer, title, why string, fields []string) *mcp.CallToolResult {
 	if autoWriteEnabled() {
 		return nil
 	}
@@ -64,6 +85,11 @@ func confirmWrite(ctx context.Context, s *server.MCPServer, title string, fields
 
 	var b strings.Builder
 	b.WriteString(title)
+	if why = strings.TrimSpace(why); why != "" {
+		b.WriteString("\n\n")
+		b.WriteString(why)
+		b.WriteString("\n")
+	}
 	for _, f := range fields {
 		if f == "" {
 			continue

@@ -40,6 +40,7 @@ func registerUpdateIssue(s *server.MCPServer, client *redmine.Client) {
 		mcp.WithNumber("priority_id",
 			mcp.Description("New priority numeric ID"),
 		),
+		withChangeSummary(),
 		mcp.WithReadOnlyHintAnnotation(false),
 		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(false),
@@ -50,6 +51,10 @@ func registerUpdateIssue(s *server.MCPServer, client *redmine.Client) {
 		issueID := req.GetInt("issue_id", 0)
 		if issueID == 0 {
 			return mcp.NewToolResultError("issue_id is required"), nil
+		}
+		why, abort := requireChangeSummary(req)
+		if abort != nil {
+			return abort, nil
 		}
 
 		var params redmine.IssueUpdateParams
@@ -132,7 +137,7 @@ func registerUpdateIssue(s *server.MCPServer, client *redmine.Client) {
 			summarize("New description", req.GetString("description", "")),
 			summarize("Comment posted on the issue", req.GetString("notes", "")),
 		}
-		if abort := confirmWrite(ctx, s, title, fields); abort != nil {
+		if abort := confirmWrite(ctx, s, title, why, fields); abort != nil {
 			return abort, nil
 		}
 
